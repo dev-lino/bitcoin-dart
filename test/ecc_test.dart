@@ -30,7 +30,7 @@ void main() {
       expect(a != b, isFalse);
     });
 
-    test('Add', () {
+    test('Addition', () {
       var a = FieldElement(2, 31);
       var b = FieldElement(15, 31);
       expect(a + b, equals(FieldElement(17, 31)));
@@ -39,13 +39,38 @@ void main() {
       expect(c + d, equals(FieldElement(7, 31)));
     });
 
-    test('Sub', () {
-      a = FieldElement(29, 31);
-      b = FieldElement(4, 31);
+    test('Subtraction', () {
+      var a = FieldElement(29, 31);
+      var b = FieldElement(4, 31);
       expect(a - b, equals(FieldElement(25, 31)));
       var c = FieldElement(15, 31);
       var d = FieldElement(30, 31);
       expect(c - d, equals(FieldElement(16, 31)));
+    });
+
+    test('Multiplication', () {
+      var a = FieldElement(24, 31);
+      var b = FieldElement(19, 31);
+      expect(a * b, equals(FieldElement(22, 31)));
+    });
+
+    test('Exponentiation', () {
+      var a = FieldElement(17, 31);
+      expect(a ^ 3, equals(FieldElement(15, 31)));
+      var b = FieldElement(5, 31);
+      var c = FieldElement(18, 31);
+      expect((b ^ 5) * c, equals(FieldElement(16, 31)));
+    });
+
+    test('Division', () {
+      var a = FieldElement(3, 31);
+      var b = FieldElement(24, 31);
+      expect(a / b, equals(FieldElement(4, 31)));
+      var c = FieldElement(17, 31);
+      expect(c ^ -3, equals(FieldElement(29, 31)));
+      var d = FieldElement(4, 31);
+      var e = FieldElement(11, 31);
+      expect((d ^ -4) * e, equals(FieldElement(13, 31)));
     });
   });
 }
