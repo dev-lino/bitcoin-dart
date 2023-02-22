@@ -1,5 +1,4 @@
 import 'package:equatable/equatable.dart';
-import 'dart:math' as math;
 import 'helper.dart';
 
 class FieldElement extends Equatable {
@@ -45,16 +44,26 @@ class FieldElement extends Equatable {
     return FieldElement(result, prime);
   }
 
-  FieldElement operator *(FieldElement other) {
-    if (prime != other.prime) {
-      String error = "Cannot multiply two numbers in different fields";
-      throw FormatException(error);
+  FieldElement operator *(dynamic other) {
+    if (other is FieldElement) {
+      if (prime != other.prime) {
+        String error = "Cannot multiply two numbers in different fields";
+        throw FormatException(error);
+      }
+      num operand = other.number;
+      // num and other.num are the actual values
+      // prime is what we need to mod against
+      var result = (number * operand) % prime;
+      // We return an element of the same class
+      return FieldElement(result, prime);
+    } else {
+      // other is the coefficient of scalar multiplication
+      num operand = other;
+      var result = (number * operand) % prime;
+      return FieldElement(result, prime);
     }
-    // num and other.num are the actual values
-    // prime is what we need to mod against
-    var result = (number * other.number) % prime;
-    // We return an element of the same class
-    return FieldElement(result, prime);
+
+    //
   }
 
   FieldElement operator ^(int exponent) {
@@ -78,15 +87,16 @@ class FieldElement extends Equatable {
   }
 }
 
+//ignore: must_be_immutable
 class Point extends Equatable {
-  final num? x;
-  final num? y;
-  final num a;
-  final num b;
+  dynamic x; // parameters could be of type num or ElementField
+  dynamic y;
+  dynamic a;
+  dynamic b;
 
   Point(this.x, this.y, this.a, this.b) {
     if (x == null && y == null) return;
-    if (math.pow(y!, 2) != math.pow(x!, 3) + a * x! + b) {
+    if (y! * y! != (x! * x!) * x! + a * x! + b) {
       String error = "($x, $y) is not on the curve";
       throw FormatException(error);
     }
@@ -96,16 +106,24 @@ class Point extends Equatable {
   String toString() {
     if (x == null) {
       return "Point(infinity)";
+    } else if (x is FieldElement) {
+      return "Point(${x.number},${y.number})_${a.number}_${b.number} FieldElement(${x.prime})";
     } else {
       return "Point($x,$y)_${a}_$b";
     }
   }
 
-  // toDouble function prevents Point(2, -5, 5, 7) == Point(2.0, -5.0, 5, 7)
-  // equals to false
   @override
-  List<Object?> get props =>
-      [a.toDouble(), b.toDouble(), x?.toDouble(), y?.toDouble()];
+  List<Object?> get props {
+    // if x is FieldElement or point at infinity (x == null)
+    if (x is FieldElement || x == null) {
+      return [x, y, a, b];
+    } else {
+      // toDouble function prevents Point(2, -5, 5, 7) == Point(2.0, -5.0, 5, 7)
+      // equals to false
+      return [a.toDouble(), b.toDouble(), x?.toDouble(), y?.toDouble()];
+    }
+  }
 
   Point operator +(Point other) {
     if (a != other.a || b != other.b) {
@@ -128,9 +146,10 @@ class Point extends Equatable {
     // x3=s**2-x1-x2
     // y3=s*(x1-x3)-y1
     if (x != other.x) {
-      num s = (other.y! - y!) / (other.x! - x!);
-      num resultX = math.pow(s, 2) - x! - other.x!;
-      num resultY = s * (x! - resultX) - y!;
+      dynamic s = (other.y! - y!) /
+          (other.x! - x!); // parameters could be of type num or ElementField
+      dynamic resultX = s * s - x! - other.x!;
+      dynamic resultY = s * (x! - resultX) - y!;
       return Point(resultX, resultY, a, b);
     }
 
@@ -138,7 +157,7 @@ class Point extends Equatable {
     // we return the point at infinity
     // note instead of figuring out what 0 is for each type
     // we just use 0 * self.x
-    if (Point(x, y, a, b) == other && y == 0 * x!) {
+    if (Point(x, y, a, b) == other && y == x! * 0) {
       return Point(null, null, a, b);
     }
 
@@ -148,12 +167,36 @@ class Point extends Equatable {
     // x3=s**2-2*x1
     // y3=s*(x1-x3)-y1
     if (Point(x, y, a, b) == other) {
-      num s = (3 * math.pow(x!, 2) + a) / (2 * y!);
-      num resultX = math.pow(s, 2) - 2 * x!;
-      num resultY = s * (x! - resultX) - y!;
+      dynamic s = ((x! * x!) * 3 + a) /
+          (y! * 2); // parameters could be of type num or ElementField
+      dynamic resultX = s * s - x! * 2;
+      dynamic resultY = s * (x! - resultX) - y!;
       return Point(resultX, resultY, a, b);
     }
     // Unexpected case
-    throw FormatException();
+    String error = "Unexpected case on point addition routine";
+    throw FormatException(error);
+  }
+
+  Point operator *(num other) {
+    // A naive implementation
+    // var product = Point(null, null, a, b);
+    // for (int i = 0; i < other; i++) {
+    //   product = product + Point(x, y, a, b);
+    // }
+    // return product;
+
+    // Implementation using binary expansion
+    int coef = other as int;
+    var current = Point(x, y, a, b);
+    var result = Point(null, null, a, b);
+    while (coef != 0) {
+      if (coef & 1 != 0) {
+        result = result + current;
+      }
+      current = current + current;
+      coef = coef >> 1;
+    }
+    return result;
   }
 }
