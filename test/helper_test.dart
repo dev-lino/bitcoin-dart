@@ -8,8 +8,10 @@ void main() {
     });
 
     test('Pow', () {
-      expect(pow(5, 8, 4), equals(1));
-      expect(pow(13, 7, 31), equals(22));
+      expect(pow(BigInt.from(5), BigInt.from(8), BigInt.from(4)),
+          equals(BigInt.one));
+      expect(pow(BigInt.from(13), BigInt.from(7), BigInt.from(31)),
+          equals(BigInt.from((22))));
     });
   });
 }

@@ -1,15 +1,26 @@
 import 'package:equatable/equatable.dart';
 import 'helper.dart';
+import 'dart:math';
 
+//ignore: must_be_immutable
 class FieldElement extends Equatable {
-  final num number;
-  final num prime;
+  dynamic number;
+  dynamic prime;
 
-  FieldElement(this.number, this.prime) {
-    if (number >= prime || number < 0) {
-      String error = "Num $number not in field range 0 to ${prime - 1}";
+  FieldElement(dynamic number, dynamic prime) {
+    var number_ = number;
+    var prime_ = prime;
+    if (number is num) {
+      number_ = BigInt.from(number);
+      prime_ = BigInt.from(prime);
+    }
+    if (number_ >= prime_ || number_ < BigInt.zero) {
+      String error =
+          "Num $number_ not in field range 0 to ${prime_ - BigInt.one}";
       throw FormatException(error);
     }
+    this.number = number_;
+    this.prime = prime_;
   }
 
   @override
@@ -46,33 +57,44 @@ class FieldElement extends Equatable {
 
   FieldElement operator *(dynamic other) {
     if (other is FieldElement) {
+      // Multiplication of two FieldElements
       if (prime != other.prime) {
         String error = "Cannot multiply two numbers in different fields";
         throw FormatException(error);
       }
-      num operand = other.number;
+      var operand = other.number;
       // num and other.num are the actual values
       // prime is what we need to mod against
       var result = (number * operand) % prime;
       // We return an element of the same class
       return FieldElement(result, prime);
     } else {
-      // other is the coefficient of scalar multiplication
-      num operand = other;
-      var result = (number * operand) % prime;
+      // Scalar Multiplication (other is the coefficient)
+      var operand_ = other;
+      if (operand_ is num) {
+        operand_ = BigInt.from(other);
+      }
+      var result = (number * operand_) % prime;
       return FieldElement(result, prime);
     }
-
-    //
   }
 
   FieldElement operator ^(int exponent) {
-    var n = exponent % (prime - 1);
+    var exponent_ = BigInt.from(exponent);
+    var n = exponent_ % (prime - BigInt.one);
     var result = pow(number, n, prime);
     return FieldElement(result, prime);
   }
 
   FieldElement operator /(FieldElement other) {
+    var number_ = number;
+    var prime_ = prime;
+    var otherNumber_ = other.number;
+    if (number is num) {
+      number_ = BigInt.from(number);
+      prime_ = BigInt.from(prime);
+      otherNumber_ = BigInt.from(other.number);
+    }
     if (prime != other.prime) {
       String error = "Cannot divide two numbers in different fields";
       throw FormatException(error);
@@ -81,9 +103,10 @@ class FieldElement extends Equatable {
     // self.num**(p-1) % p == 1
     // this means:
     // 1/n == pow(n, p-2, p)
-    var result = (number * pow(other.number, prime - 2, prime)) % prime;
+    var result =
+        (number_ * pow(otherNumber_, prime_ - BigInt.two, prime_)) % prime_;
     // We return an element of the same class
-    return FieldElement(result, prime);
+    return FieldElement(result, prime_);
   }
 }
 
@@ -146,8 +169,7 @@ class Point extends Equatable {
     // x3=s**2-x1-x2
     // y3=s*(x1-x3)-y1
     if (x != other.x) {
-      dynamic s = (other.y! - y!) /
-          (other.x! - x!); // parameters could be of type num or ElementField
+      dynamic s = (other.y! - y!) / (other.x! - x!);
       dynamic resultX = s * s - x! - other.x!;
       dynamic resultY = s * (x! - resultX) - y!;
       return Point(resultX, resultY, a, b);
@@ -167,8 +189,7 @@ class Point extends Equatable {
     // x3=s**2-2*x1
     // y3=s*(x1-x3)-y1
     if (Point(x, y, a, b) == other) {
-      dynamic s = ((x! * x!) * 3 + a) /
-          (y! * 2); // parameters could be of type num or ElementField
+      dynamic s = ((x! * x!) * 3 + a) / (y! * 2);
       dynamic resultX = s * s - x! * 2;
       dynamic resultY = s * (x! - resultX) - y!;
       return Point(resultX, resultY, a, b);
@@ -178,7 +199,7 @@ class Point extends Equatable {
     throw FormatException(error);
   }
 
-  Point operator *(num other) {
+  Point operator *(dynamic other) {
     // A naive implementation
     // var product = Point(null, null, a, b);
     // for (int i = 0; i < other; i++) {
@@ -186,17 +207,133 @@ class Point extends Equatable {
     // }
     // return product;
 
-    // Implementation using binary expansion
-    int coef = other as int;
+    // Binary expansion implementation
+    dynamic zero = 0;
+    dynamic one = 1;
+    if (other is BigInt) {
+      zero = BigInt.zero;
+      one = BigInt.one;
+    }
+    var coef = other;
     var current = Point(x, y, a, b);
     var result = Point(null, null, a, b);
-    while (coef != 0) {
-      if (coef & 1 != 0) {
+    while (coef != zero) {
+      if (coef & one != zero) {
         result = result + current;
       }
       current = current + current;
       coef = coef >> 1;
     }
     return result;
+  }
+}
+
+const String A = "0x0";
+const String B = "0x7";
+const String P =
+    "0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEFFFFFC2F";
+const String N =
+    "0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141";
+
+//ignore: must_be_immutable
+class S256Field extends FieldElement {
+  S256Field(dynamic number)
+      : super(BigInt.parse(number.substring(2), radix: 16),
+            BigInt.parse(P.substring(2), radix: 16));
+
+  @override
+  String toString() {
+    return (number as BigInt).toRadixString(16).padLeft(64, '0');
+  }
+}
+
+//ignore: must_be_immutable
+class S256Point extends Point {
+  static var paramA = S256Field(A);
+  static var paramB = S256Field(B);
+  static var G = S256Point(
+      "0x79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
+      "0x483ada7726a3c4655da4fbfc0e1108a8fd17b448a68554199c47d08ffb10d4b8");
+
+  S256Point._internal(dynamic x, dynamic y, dynamic a, dynamic b)
+      : super(x, y, a, b);
+
+  factory S256Point.fromPoint(Point p) {
+    if (p.x == null) {
+      return S256Point._internal(p.x, p.y, paramA, paramB);
+    } else {
+      return S256Point._internal(S256Field("0x${p.x.number.toRadixString(16)}"),
+          S256Field("0x${p.y.number.toRadixString(16)}"), p.a, p.b);
+    }
+  }
+
+  factory S256Point(dynamic x, dynamic y) {
+    if (x == null) {
+      return S256Point._internal(x, y, paramA, paramB);
+    } else {
+      return S256Point._internal(S256Field(x), S256Field(y), paramA, paramB);
+    }
+  }
+
+  @override
+  List<Object> get props => [x, y, a, b];
+
+  @override
+  S256Point operator *(dynamic other) {
+    var n = BigInt.parse(N.substring(2), radix: 16);
+    var coef = other % n;
+    var result = super * (coef);
+    return S256Point.fromPoint(result);
+  }
+
+  bool verify(BigInt z, Signature sig) {
+    var n = BigInt.parse(N.substring(2), radix: 16);
+    var sInv = pow(sig.s, n - BigInt.two, n);
+    var u = z * sInv % n;
+    var v = sig.r * sInv % n;
+    var total = G * u + S256Point("0x$x", "0x$y") * v;
+    return total.x.number == sig.r;
+  }
+}
+
+class Signature {
+  BigInt r;
+  BigInt s;
+
+  Signature(this.r, this.s);
+
+  @override
+  String toString() {
+    return "Signature(${r.toRadixString(16)},${s.toRadixString(16)})";
+  }
+}
+
+class PrivateKey {
+  BigInt secret;
+  S256Point? point;
+  static var G = S256Point(
+      "0x79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
+      "0x483ada7726a3c4655da4fbfc0e1108a8fd17b448a68554199c47d08ffb10d4b8");
+
+  PrivateKey(this.secret) {
+    point = (G * secret);
+  }
+
+  @override
+  String toString() {
+    return (secret).toRadixString(16);
+  }
+
+  Signature sign(BigInt z) {
+    var n = BigInt.parse(N.substring(2), radix: 16);
+    //var rng = Random();
+    //var k = BigInt.from(rng.nextInt(256)); //radint(0, N)
+    var k = randomBigInt() % n; // testar caso k = 0;
+    //var k = BigInt.zero; // dá erro
+    //var k = n; // dá erro
+    var r = (G * k).x.number;
+    var kInv = pow(k, n - BigInt.two, n);
+    var s = (z + r * secret) * kInv % n;
+    return Signature(r, s);
   }
 }
