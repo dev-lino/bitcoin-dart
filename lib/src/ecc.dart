@@ -1,6 +1,6 @@
 import 'package:equatable/equatable.dart';
+
 import 'helper.dart';
-import 'dart:math';
 
 //ignore: must_be_immutable
 class FieldElement extends Equatable {
@@ -328,7 +328,8 @@ class PrivateKey {
     var n = BigInt.parse(N.substring(2), radix: 16);
     //var rng = Random();
     //var k = BigInt.from(rng.nextInt(256)); //radint(0, N)
-    var k = randomBigInt() % n; // testar caso k = 0;
+    //var k = randomBigInt() % n; // testar caso k = 0;
+    var k = deterministicK(z, secret, N) % n;
     //var k = BigInt.zero; // dá erro
     //var k = n; // dá erro
     var r = (G * k).x.number;
