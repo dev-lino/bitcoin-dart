@@ -206,4 +206,33 @@ void main() {
 
   // var result =
   //     deterministicK(z, secret, "0x4000000000000000000020108A2E0CC0D99F8A5EF");
+
+  // https://suragch.medium.com/working-with-bytes-in-dart-6ece83455721
+  // https://stackoverflow.com/questions/65376533/dart-typeddata-and-big-little-endian-representation
+  // int x = 0x80;
+  // print(x);
+
+  // String hex = 2020.toRadixString(16).padLeft(4, '0');
+  // print(hex); // 07e4
+  // String binary = 2020.toRadixString(2);
+  // print(binary); // 11111100100
+
+  // int myInt = int.parse('07e4', radix: 16);
+  // print(myInt); // 2020
+  // myInt = int.parse('11111100100', radix: 2);
+  // print(myInt); // 2020
+
+  // Uint8List byteList = Uint8List.fromList([0, 1, 2, 3]);
+  // ByteData byteData = ByteData.sublistView(byteList);
+  // int value = byteData.getUint16(0, Endian.little);
+  // print(value); // 256
+
+  // var string = '80'; //0x80
+  // print(0x80); //128
+  // print(int.parse(string, radix: 16)); //128
+  // print(int.parse("0x$string")); //128
+
+  // var pk = PrivateKey(BigInt.from(5002));
+  // var point = pk.point;
+  // point.address(compressed: false, testnet: true);
 }

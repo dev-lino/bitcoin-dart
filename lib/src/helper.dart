@@ -1,7 +1,7 @@
 import 'dart:math';
 import 'dart:typed_data';
 import 'package:convert/convert.dart';
-import 'package:crypto/crypto.dart';
+import 'package:pointycastle/export.dart';
 
 /// Fast exponentiation (x ^ y) % n
 // https://www.youtube.com/watch?v=-3Lt-EwR_Hw
@@ -16,6 +16,14 @@ BigInt pow(BigInt x, BigInt y, BigInt n) {
     } else {
       return (R * x * R) % n;
     }
+  }
+}
+
+BigInt hexToBigInt(String hex) {
+  if (hex.substring(0, 2) == '0x') {
+    return BigInt.parse(hex.substring(2), radix: 16);
+  } else {
+    return BigInt.parse(hex, radix: 16);
   }
 }
 
@@ -146,7 +154,7 @@ Uint8List encodeBigInt(BigInt? number) {
   return result;
 }
 
-BigInt deterministicK(BigInt z, BigInt secret, String N) {
+BigInt deterministicK(BigInt z, BigInt secret, BigInt n) {
   //print(z.toRadixString(16));
   // var bytes = utf8.encode("foobar");
   // var digest = sha1.convert(bytes);
@@ -156,7 +164,7 @@ BigInt deterministicK(BigInt z, BigInt secret, String N) {
   var zz = z;
   //var n = "4000000000000000000020108A2E0CC0D99F8A5EF";
   //var nn = BigInt.parse(n, radix: 16);
-  var nn = BigInt.parse(N.substring(2), radix: 16);
+  //var nn = BigInt.parse(N.substring(2), radix: 16);
 
   var listK = List.generate(32, (index) => '00');
   var k = listK.map((item) => int.parse(item, radix: 16)).toList();
@@ -171,6 +179,11 @@ BigInt deterministicK(BigInt z, BigInt secret, String N) {
   // }
 
   // var z_bytes = digesttt.bytes; //hex.decode(zz.toRadixString(16));
+
+  //TODO: (hex.decode problem)
+  //FormatException: Invalid input length, must be even. (at character 64)
+  //8f6596db9aa813d6aa0896590f828ca0aff34506e2b42a19ce9806a288613e0
+
   var zBytes = hex.decode(zz.toRadixString(16)); //zz ou z?
   //var secret_bytes = [0] + hex.decode(secret.toRadixString(16));
 
@@ -182,42 +195,183 @@ BigInt deterministicK(BigInt z, BigInt secret, String N) {
   // print(hex.encode(
   // bits2octets(Uint8List.fromList(z_bytes), nn))); //bits2octets(h1) ok
 
-  var bits2octetsh1 = bits2octets(Uint8List.fromList(zBytes), nn);
+  var bits2octetsh1 = bits2octets(Uint8List.fromList(zBytes), n);
 
   //print(v);
   //print(k);
 
-  var hmacSha256 = Hmac(sha256, k); // HMAC-SHA256
-  k = hmacSha256.convert(v + [0] + encodeBigInt(secret) + bits2octetsh1).bytes;
+  final hmacSha256 = HMac(SHA256Digest(), 64);
+
+  hmacSha256.init(KeyParameter(Uint8List.fromList(k)));
+  k = hmacSha256.process(
+      Uint8List.fromList(v + [0] + encodeBigInt(secret) + bits2octetsh1));
+  //var hmacSha256 = Hmac(sha256, k); // HMAC-SHA256
+  //k = hmacSha256.convert(v + [0] + encodeBigInt(secret) + bits2octetsh1).bytes;
 
   //print(hex.encode(k)); //K after step d
 
   //print(hex.encode(k));
-  hmacSha256 = Hmac(sha256, k);
-  v = hmacSha256.convert(v).bytes;
+  hmacSha256.init(KeyParameter(Uint8List.fromList(k)));
+  v = hmacSha256.process(Uint8List.fromList(v));
+  //hmacSha256 = Hmac(sha256, k);
+  //v = hmacSha256.convert(v).bytes;
   //print(hex.encode(v)); // V after step e:
-  k = hmacSha256.convert(v + [1] + encodeBigInt(secret) + bits2octetsh1).bytes;
+  k = hmacSha256.process(
+      Uint8List.fromList(v + [1] + encodeBigInt(secret) + bits2octetsh1));
+  //k = hmacSha256.convert(v + [1] + encodeBigInt(secret) + bits2octetsh1).bytes;
   //print(hex.encode(k)); //K after step f
-  hmacSha256 = Hmac(sha256, k);
-  v = hmacSha256.convert(v).bytes;
+  hmacSha256.init(KeyParameter(Uint8List.fromList(k)));
+  v = hmacSha256.process(Uint8List.fromList(v));
+  //hmacSha256 = Hmac(sha256, k);
+  //v = hmacSha256.convert(v).bytes;
   //print(hex.encode(v)); // V after step g:
 
   //var t = Uint8List((nn.bitLength * 1 + 7) ~/ 8);
   //print(t);
 
   while (true) {
-    v = hmacSha256.convert(v).bytes;
+    v = hmacSha256.process(Uint8List.fromList(v));
+    //v = hmacSha256.convert(v).bytes;
     //print(hex.encode(v)); // V first try
-
-    var k1 = bitsToInt(Uint8List.fromList(v), nn);
+    var k1 = bitsToInt(Uint8List.fromList(v), n);
     //print(k1.toRadixString(16));
-    if (k1 >= BigInt.one && k1 < nn) {
+    if (k1 >= BigInt.one && k1 < n) {
       return k1;
     }
-    k = hmacSha256.convert(v + [0]).bytes;
+    k = hmacSha256.process(Uint8List.fromList(v + [0]));
+    //k = hmacSha256.convert(v + [0]).bytes;
     //print(hex.encode(k)); //new K
-    hmacSha256 = Hmac(sha256, k);
-    v = hmacSha256.convert(v).bytes;
+    hmacSha256.init(KeyParameter(Uint8List.fromList(k)));
+    v = hmacSha256.process(Uint8List.fromList(v));
+    //hmacSha256 = Hmac(sha256, k);
+    //v = hmacSha256.convert(v).bytes;
     //print(hex.encode(v)); // new V
   }
+}
+
+// https://github.com/dart-lang/sdk/issues/32803
+// BigInt readBytes(Uint8List bytes) {
+//   BigInt result = BigInt.zero;
+
+//   for (final byte in bytes) {
+//     // reading in big-endian, so we essentially concat the new byte to the end
+//     result = (result << 8) | BigInt.from(byte & 0xff);
+//   }
+//   return result;
+// }
+
+// https://github.com/dart-lang/sdk/issues/32803
+// Uint8List writeBigInt(BigInt number) {
+//   // Not handling negative numbers. Decide how you want to do that.
+//   int bytes = (number.bitLength + 7) >> 3;
+//   var b256 = BigInt.from(256);
+//   var result = Uint8List(bytes);
+//   for (int i = 0; i < bytes; i++) {
+//     result[bytes - 1 - i] = number.remainder(b256).toInt();
+//     number = number >> 8;
+//   }
+//   return result;
+// }
+
+// def to_bytes(n, length=1, byteorder='big', signed=False):
+//     if byteorder == 'little':
+//         order = range(length)
+//     elif byteorder == 'big':
+//         order = reversed(range(length))
+//     else:
+//         raise ValueError("byteorder must be either 'little' or 'big'")
+
+//     return bytes((n >> i*8) & 0xff for i in order)
+
+Uint8List to_bytes(int length, BigInt number, {bool isBigEndian = true}) {
+  int bytes = (number.bitLength + 7) >> 3;
+  if (length > bytes) {
+    bytes = length;
+  }
+  var b256 = BigInt.from(256);
+  var result = Uint8List(bytes);
+  for (int i = 0; i < bytes; i++) {
+    result[bytes - 1 - i] = number.remainder(b256).toInt();
+    number = number >> 8;
+  }
+  if (!isBigEndian) {
+    return Uint8List.fromList(result.reversed.toList());
+  } else {
+    return result;
+  }
+}
+
+Uint8List int_to_little_endian(int length, BigInt number) {
+  return to_bytes(length, number, isBigEndian: false);
+}
+
+// def from_bytes(bytes, byteorder='big', signed=False):
+//     if byteorder == 'little':
+//         little_ordered = list(bytes)
+//     elif byteorder == 'big':
+//         little_ordered = list(reversed(bytes))
+//     else:
+//         raise ValueError("byteorder must be either 'little' or 'big'")
+
+//     n = sum(b << i*8 for i, b in enumerate(little_ordered))
+//     if signed and little_ordered and (little_ordered[-1] & 0x80):
+//         n -= 1 << 8*len(little_ordered)
+
+//     return n
+BigInt from_bytes(Uint8List bytes, {bool isBigEndian = true}) {
+  BigInt result = BigInt.zero;
+
+  List<int> order = bytes;
+  if (!isBigEndian) {
+    order = bytes.reversed.toList();
+  }
+
+  for (final byte in order) {
+    // reading in big-endian, so we essentially concat the new byte to the end
+    result = (result << 8) | BigInt.from(byte & 0xff);
+  }
+  return result;
+}
+
+BigInt little_endian_to_int(Uint8List bytes) {
+  return from_bytes(bytes, isBigEndian: false);
+}
+
+const String BASE58_ALPHABET =
+    '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
+
+String base58_encode(List<int> bytes) {
+  var count = 0;
+  // The purpose of this loop is to determine how many of the bytes
+  // at the front are 0 bytes. We want to add them back at the end.
+  for (var i = 0; i < bytes.length; i++) {
+    if (bytes[i] == 0) {
+      count += 1;
+    } else {
+      break;
+    }
+  }
+  var num = from_bytes(Uint8List.fromList(bytes)); //decodeBigInt, readBytes
+  var prefix = '1' * count;
+  var result = '';
+  while (num > BigInt.zero) {
+    var temp = num;
+    num = temp ~/ BigInt.from(58);
+    var mod = temp.remainder(BigInt.from(58));
+    result = BASE58_ALPHABET[mod.toInt()] + result;
+  }
+  return prefix + result;
+}
+
+String base58_encode_checksum(Uint8List bytes) {
+  final hash = hash256(bytes);
+  return base58_encode(bytes + hash.sublist(0, 4));
+}
+
+Uint8List hash160(Uint8List bytes) {
+  return Digest('RIPEMD-160').process(Digest('SHA-256').process(bytes));
+}
+
+Uint8List hash256(Uint8List bytes) {
+  return Digest('SHA-256').process(Digest('SHA-256').process(bytes));
 }
